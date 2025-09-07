@@ -1,456 +1,341 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>New Copper, Old Copper — 6x6</title>
-  <style>
-    :root{
-      --blue:#1e90ff;
-      --red:#e53935;
-      --bg:#0f1220;
-      --panel:#171a2b;
-      --accent:#8a98ff;
-      --grid:#2a2f4a;
-      --cell:#1b2040;
-      --ok:#13c27a;
-      --warn:#ffb703;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>New Copper, Old Copper — 6x6</title>
+  <style>
+    :root{
+      --blue:#1e90ff;
+      --red:#e53935;
+      --bg:#0f1220;
+      --panel:#171a2b;
+      --accent:#8a98ff;
+      --grid:#2a2f4a;
+      --cell:#1b2040;
+      --ok:#13c27a;
+      --warn:#ffb703;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,Segoe UI,Roboto,Ubuntu,Arial,sans-serif; background:var(--bg); color:#e6e8ff;
+      display:flex; min-height:100dvh; align-items:center; justify-content:center; padding:16px;
+    }
+    .wrap{display:grid; gap:16px; width:min(1100px, 100%); grid-template-columns: 1fr 320px}
+    @media (max-width: 920px){ .wrap{grid-template-columns: 1fr} }
 
-      --bg-light:#f2f2f2;
-      --panel-light:#ffffff;
-      --cell-light:#e0e0e0;
-      --text-light:#1a1a1a;
-    }
+    .board{
+      background:linear-gradient(180deg, var(--panel), transparent 200px);
+      border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    .grid{ display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(6,1fr); gap:8px; }
+    .cell{
+      width:100%; aspect-ratio:1/1; border-radius:12px; background:var(--cell); display:grid; place-items:center;
+      border:1px solid var(--grid); font-size:28px; position:relative; cursor:pointer; user-select:none;
+      transition: transform .08s ease;
+    }
+    .cell:hover{ transform: translateY(-1px); }
+    .cell.valid{ outline:2px dashed var(--ok); outline-offset:2px; }
+    .cell.invalid-hover{ outline:2px dashed #ff5252; outline-offset:2px; }
+    .cell.disabled{ pointer-events:none; opacity:.5; }
 
-    *{box-sizing:border-box}
+    .piece{ font-weight:700; filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+    .blue{ color:var(--blue); }
+    .red{ color:var(--red); }
 
-    body{
-      margin:0;
-      font-family: system-ui, Segoe UI, Roboto, Ubuntu, Arial, sans-serif;
-      background: var(--bg);
-      color: #e6e8ff;
-      display:flex;
-      min-height:100dvh;
-      align-items:center;
-      justify-content:center;
-      padding:16px;
-      transition: background .3s, color .3s;
-    }
+    .side{
+      background:var(--panel); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      display:flex; flex-direction:column; gap:14px;
+    }
+    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
-    body.light{
-      background: var(--bg-light);
-      color: var(--text-light);
-    }
+    .btn{
+      background:#22284f; border:1px solid #4050a0; color:#e6e8ff; padding:10px 12px; border-radius:12px; cursor:pointer;
+      font-weight:600; letter-spacing:.2px; transition:.15s ease; display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.25); }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; transform:none; }
+    .btn.ghost{ background:transparent; border-color:#394074 }
+    .btn.primary{ background:linear-gradient(180deg,#3b46a9,#2d398f); border-color:#4e5bed }
+    .btn.warn{ background:#3a2a00; border-color:#7a5a00 }
 
-    .wrap{
-      display:grid;
-      gap:16px;
-      width:min(1100px, 100%);
-      grid-template-columns: 1fr 320px;
-    }
+    .chip{ background:#232955; border:1px solid #394074; padding:6px 10px; border-radius:999px; font-weight:700; }
+    .legend{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .legend div{ background:#12162f; border:1px solid #2b3466; border-radius:10px; padding:8px 10px; font-size:14px; }
 
-    @media (max-width: 920px){ 
-      .wrap{grid-template-columns: 1fr} 
-    }
+    .headline{ font-size:18px; font-weight:800; color:#cbd2ff; letter-spacing:.3px }
+    .sub{ color:#aeb6ff; font-size:13px }
+    .turn{ font-weight:800; }
 
-    .board{
-      background: linear-gradient(180deg, var(--panel), transparent 200px);
-      border-radius:16px;
-      padding:16px;
-      box-shadow:0 10px 30px rgba(0,0,0,.35);
-      transition: background .3s, box-shadow .3s;
-    }
+    dialog{ border:none; border-radius:16px; padding:0; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5) }
+    .modal{
+      background:var(--panel); color:#e6e8ff; padding:16px; width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px;
+    }
+    .budget{ font-weight:800; }
+    .adj{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px }
+    .adj button{ aspect-ratio:1/1; border-radius:12px; font-size:22px }
+    .muted{ opacity:.7 }
 
-    body.light .board{
-      background: linear-gradient(180deg, var(--panel-light), transparent 200px);
-      box-shadow:0 10px 20px rgba(0,0,0,.1);
-    }
+    .footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px }
 
-    .grid{ display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(6,1fr); gap:8px; }
-
-    .cell{
-      width:100%; aspect-ratio:1/1; border-radius:12px;
-      background:var(--cell); display:grid; place-items:center;
-      border:1px solid var(--grid); font-size:28px; position:relative; cursor:pointer; user-select:none;
-      transition: transform .08s ease, background .3s, border-color .3s;
-    }
-
-    body.light .cell{
-      background: var(--cell-light);
-      border:1px solid #ccc;
-    }
-
-    .cell:hover{ transform: translateY(-1px); }
-    .cell.valid{ outline:2px dashed var(--ok); outline-offset:2px; }
-    .cell.invalid-hover{ outline:2px dashed #ff5252; outline-offset:2px; }
-    .cell.disabled{ pointer-events:none; opacity:.5; }
-
-    .piece{ font-weight:700; filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
-    .blue{ color:var(--blue); }
-    .red{ color:var(--red); }
-
-    .side{
-      background:var(--panel); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
-      display:flex; flex-direction:column; gap:14px;
-      transition: background .3s, box-shadow .3s;
-    }
-
-    body.light .side{
-      background: var(--panel-light);
-      box-shadow:0 6px 16px rgba(0,0,0,.1);
-    }
-
-    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
-    .btn{
-      background:#22284f; border:1px solid #4050a0; color:#e6e8ff; padding:10px 12px; border-radius:12px; cursor:pointer;
-      font-weight:600; letter-spacing:.2px; transition:.15s ease; display:inline-flex; align-items:center; gap:8px;
-    }
-
-    body.light .btn{
-      background:#f0f0f0; border:1px solid #bbb; color:#1a1a1a;
-    }
-
-    .btn:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.25); }
-    .btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; transform:none; }
-    .btn.ghost{ background:transparent; border-color:#394074 }
-    .btn.primary{ background:linear-gradient(180deg,#3b46a9,#2d398f); border-color:#4e5bed }
-    .btn.warn{ background:#3a2a00; border-color:#7a5a00 }
-
-    .chip{ background:#232955; border:1px solid #394074; padding:6px 10px; border-radius:999px; font-weight:700; }
-    .legend{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-    .legend div{ background:#12162f; border:1px solid #2b3466; border-radius:10px; padding:8px 10px; font-size:14px; }
-
-    .headline{ font-size:18px; font-weight:800; color:#cbd2ff; letter-spacing:.3px }
-    body.light .headline{ color:#1a1a1a; }
-    .sub{ color:#aeb6ff; font-size:13px }
-    body.light .sub{ color:#333; }
-    .turn{ font-weight:800; }
-
-    dialog{ border:none; border-radius:16px; padding:0; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5) }
-    .modal{
-      background:var(--panel); color:#e6e8ff; padding:16px; width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px;
-      transition: background .3s, color .3s;
-    }
-
-    body.light .modal{
-      background: var(--panel-light);
-      color: var(--text-light);
-    }
-
-    .budget{ font-weight:800; }
-    .adj{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px }
-    .adj button{ aspect-ratio:1/1; border-radius:12px; font-size:22px }
-    .muted{ opacity:.7 }
-
-    .footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px }
-
-    #endGameModal::backdrop{ background:rgba(0,0,0,.6); }
-    #endGameModal .modal{ text-align:center; }
-  </style>
+    /* Modal de fim de jogo */
+    #endGameModal::backdrop{ background:rgba(0,0,0,.6); }
+    #endGameModal .modal{ text-align:center; }
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <section class="board">
-      <div class="row" style="justify-content:space-between; margin-bottom:10px">
-        <div>
-          <div class="headline">New Copper, Old Copper — 6×6</div>
-          <div class="sub">Suas peças <span class="blue">(azuis)</span>; Bot <span class="red">(vermelhas)</span></div>
-        </div>
-        <div class="row">
-          <span class="chip">Placar: <span id="scoreP">0</span> — <span id="scoreB">0</span></span>
-          <span class="chip">Turno: <span class="turn" id="turnTxt">Você</span></span>
-        </div>
-      </div>
-      <div id="grid" class="grid" aria-label="Tabuleiro 6x6"></div>
-    </section>
+  <div class="wrap">
+    <section class="board">
+      <div class="row" style="justify-content:space-between; margin-bottom:10px">
+        <div>
+          <div class="headline">New Copper, Old Copper — 6×6</div>
+          <div class="sub">Suas peças <span class="blue">(azuis)</span>; Bot <span class="red">(vermelhas)</span></div>
+        </div>
+        <div class="row">
+          <span class="chip">Placar: <span id="scoreP">0</span> — <span id="scoreB">0</span></span>
+          <span class="chip">Turno: <span class="turn" id="turnTxt">Você</span></span>
+        </div>
+      </div>
+      <div id="grid" class="grid" aria-label="Tabuleiro 6x6"></div>
+    </section>
 
-    <aside class="side">
-      <div class="headline">Peças</div>
-      <div class="legend">
-        <div>♤ Lisa — valor 1</div>
-        <div>♡ Serrada — valor 2</div>
-        <div>◇ Lustrada — valor 3</div>
-        <div>♧ Entalhada — valor 4</div>
-      </div>
+    <aside class="side">
+      <div class="headline">Peças</div>
+      <div class="legend">
+        <div>♤ Lisa — valor 1</div>
+        <div>♡ Serrada — valor 2</div>
+        <div>◇ Lustrada — valor 3</div>
+        <div>♧ Entalhada — valor 4</div>
+      </div>
 
-      <div class="headline" style="margin-top:8px">Selecionar peça</div>
-      <div class="row">
-        <button class="btn" data-pick="1">♤ 1</button>
-        <button class="btn" data-pick="2">♡ 2</button>
-        <button class="btn" data-pick="3">◇ 3</button>
-        <button class="btn" data-pick="4">♧ 4</button>
-      </div>
+      <div class="headline" style="margin-top:8px">Selecionar peça</div>
+      <div class="row">
+        <button class="btn" data-pick="1">♤ 1</button>
+        <button class="btn" data-pick="2">♡ 2</button>
+        <button class="btn" data-pick="3">◇ 3</button>
+        <button class="btn" data-pick="4">♧ 4</button>
+      </div>
 
-      <div class="headline" style="margin-top:8px">Ações</div>
-      <div class="row">
-        <button id="endSummon" class="btn warn" disabled>Concluir invocação</button>
-        <button id="resetBtn" class="btn ghost">Reiniciar</button>
-        <button id="twoPlayerBtn" class="btn primary">2 Jogadores</button>
-        <button id="toggleTheme" class="btn ghost">Tema Claro/Escuro</button>
-      </div>
+      <div class="headline" style="margin-top:8px">Ações</div>
+      <div class="row">
+        <button id="endSummon" class="btn warn" disabled>Concluir invocação</button>
+        <button id="resetBtn" class="btn ghost">Reiniciar</button>
+      </div>
 
-      <div class="sub">Dica: agora ♡/◇/♧ podem ser colocadas se a soma dos lados adjacentes for ≥ ao seu valor, até 4.</div>
-    </aside>
-  </div>
+      <div class="sub">Dica: agora ♡/◇/♧ podem ser colocadas se a soma dos lados adjacentes for ≥ ao seu valor, até 4.</div>
+    </aside>
+  </div>
 
-  <!-- Modal de invocação -->
-  <dialog id="summonDlg">
-    <div class="modal">
-      <div class="headline">Invocar peças adjacentes</div>
-      <div>Peça principal: <span id="summonMain"></span> · Orçamento: <span class="budget" id="budget">0</span></div>
-      <div id="adjGrid" class="adj"></div>
-      <div class="row">
-        <button class="btn" data-sel="1">♤ 1</button>
-        <button class="btn" data-sel="2">♡ 2</button>
-        <button class="btn" data-sel="3">◇ 3</button>
-        <button class="btn" data-sel="4">♧ 4</button>
-      </div>
-      <div class="footer">
-        <span class="sub muted">Convocações do seu turno</span>
-        <div class="row">
-          <button id="clearSummon" class="btn ghost">Limpar</button>
-          <button id="closeSummon" class="btn primary">Concluir invocação</button>
-        </div>
-      </div>
-    </div>
-  </dialog>
+  <!-- Modal de invocação -->
+  <dialog id="summonDlg">
+    <div class="modal">
+      <div class="headline">Invocar peças adjacentes</div>
+      <div>Peça principal: <span id="summonMain"></span> · Orçamento: <span class="budget" id="budget">0</span></div>
+      <div id="adjGrid" class="adj"></div>
+      <div class="row">
+        <button class="btn" data-sel="1">♤ 1</button>
+        <button class="btn" data-sel="2">♡ 2</button>
+        <button class="btn" data-sel="3">◇ 3</button>
+        <button class="btn" data-sel="4">♧ 4</button>
+      </div>
+      <div class="footer">
+        <span class="sub muted">Convocações do seu turno</span>
+        <div class="row">
+          <button id="clearSummon" class="btn ghost">Limpar</button>
+          <button id="closeSummon" class="btn primary">Concluir invocação</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
-  <!-- Modal de fim de jogo -->
-  <dialog id="endGameModal">
-    <div class="modal">
-      <div id="endGameMsg" class="headline"></div>
-      <button id="restartBtn" class="btn primary" style="margin-top:12px">Reiniciar</button>
-    </div>
-  </dialog>
+  <!-- Modal de fim de jogo -->
+  <dialog id="endGameModal">
+    <div class="modal">
+      <div id="endGameMsg" class="headline"></div>
+      <button id="restartBtn" class="btn primary" style="margin-top:12px">Reiniciar</button>
+    </div>
+  </dialog>
 
 <script>
 (function(){
-  const SIZE = 6;
-  const gridEl = document.getElementById('grid');
-  const scoreP = document.getElementById('scoreP');
-  const scoreB = document.getElementById('scoreB');
-  const turnTxt = document.getElementById('turnTxt');
-  const endSummonBtn = document.getElementById('endSummon');
-  const resetBtn = document.getElementById('resetBtn');
-  const twoPlayerBtn = document.getElementById('twoPlayerBtn');
-  const toggleTheme = document.getElementById('toggleTheme');
+  const SIZE = 6;
+  const gridEl = document.getElementById('grid');
+  const scoreP = document.getElementById('scoreP');
+  const scoreB = document.getElementById('scoreB');
+  const turnTxt = document.getElementById('turnTxt');
+  const endSummonBtn = document.getElementById('endSummon');
+  const resetBtn = document.getElementById('resetBtn');
 
-  const summonDlg = document.getElementById('summonDlg');
-  const summonMain = document.getElementById('summonMain');
-  const budgetEl = document.getElementById('budget');
-  const adjGrid = document.getElementById('adjGrid');
-  const selBtns = [...document.querySelectorAll('[data-sel]')];
-  const clearSummonBtn = document.getElementById('clearSummon');
-  const closeSummonBtn = document.getElementById('closeSummon');
+  const summonDlg = document.getElementById('summonDlg');
+  const summonMain = document.getElementById('summonMain');
+  const budgetEl = document.getElementById('budget');
+  const adjGrid = document.getElementById('adjGrid');
+  const selBtns = [...document.querySelectorAll('[data-sel]')];
+  const clearSummonBtn = document.getElementById('clearSummon');
+  const closeSummonBtn = document.getElementById('closeSummon');
 
-  const pickBtns = [...document.querySelectorAll('[data-pick]')];
+  const pickBtns = [...document.querySelectorAll('[data-pick]')];
 
-  const endGameModal = document.getElementById('endGameModal');
-  const endGameMsg = document.getElementById('endGameMsg');
-  const restartBtn = document.getElementById('restartBtn');
+  const endGameModal = document.getElementById('endGameModal');
+  const endGameMsg = document.getElementById('endGameMsg');
+  const restartBtn = document.getElementById('restartBtn');
 
-  const PIECES = {
-    1:{sym:'\u2664', val:1, name:'Lisa'},
-    2:{sym:'\u2661', val:2, name:'Serrada'},
-    3:{sym:'\u25C7', val:3, name:'Lustrada'},
-    4:{sym:'\u2667', val:4, name:'Entalhada'},
-  };
+  const PIECES = {
+    1:{sym:'\u2664', val:1, name:'Lisa'},
+    2:{sym:'\u2661', val:2, name:'Serrada'},
+    3:{sym:'\u25C7', val:3, name:'Lustrada'},
+    4:{sym:'\u2667', val:4, name:'Entalhada'},
+  };
 
-  let board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
-  let turn = 'P';
-  let selected = 1;
-  let scores = {P:0, B:0};
-  let summon = null;
-  let currentSelSummon = 1;
-  let twoPlayer = false;
+  let board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
+  let turn = 'P';
+  let selected = 1;
+  let scores = {P:0, B:0};
+  let summon = null;
+  let currentSelSummon = 1;
 
-  function buildGrid(){
-    gridEl.innerHTML = '';
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        const cell = document.createElement('button');
-        cell.className='cell';
-        cell.dataset.r = r; cell.dataset.c = c;
-        cell.addEventListener('click', ()=>onCellClick(r,c));
-        gridEl.appendChild(cell);
-      }
-    }
-    refreshBoard();
-  }
+  function buildGrid(){
+    gridEl.innerHTML = '';
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const cell = document.createElement('button');
+        cell.className='cell';
+        cell.dataset.r = r; cell.dataset.c = c;
+        cell.addEventListener('click', ()=>onCellClick(r,c));
+        gridEl.appendChild(cell);
+      }
+    }
+    refreshBoard();
+  }
 
-  function refreshBoard(){
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        const el = gridEl.children[r*SIZE+c];
-        el.innerHTML='';
-        const p = board[r][c];
-        if(p){
-          const span = document.createElement('span');
-          span.className = 'piece ' + (p.owner==='P'?'blue':'red');
-          span.textContent = PIECES[p.val].sym;
-          el.appendChild(span);
-          el.classList.add('disabled');
-        }else{
-          el.classList.remove('disabled');
-        }
-      }
-    }
-    scoreP.textContent = scores.P;
-    scoreB.textContent = scores.B;
-    turnTxt.textContent = turn==='P'?'Jogador 1': turn==='B' && twoPlayer?'Jogador 2':'Bot';
-    updateValidHints();
-  }
+  function refreshBoard(){
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const el = gridEl.children[r*SIZE+c];
+        el.innerHTML='';
+        const p = board[r][c];
+        if(p){
+          const span = document.createElement('span');
+          span.className = 'piece ' + (p.owner==='P'?'blue':'red');
+          span.textContent = PIECES[p.val].sym;
+          el.appendChild(span);
+          el.classList.add('disabled');
+        }else{
+          el.classList.remove('disabled');
+        }
+      }
+    }
+    scoreP.textContent = scores.P;
+    scoreB.textContent = scores.B;
+    turnTxt.textContent = turn==='P'?'Você':'Bot';
+    updateValidHints();
+  }
 
-  function neighbors(r,c){
-    const res=[];
-    if(r>0) res.push({r:r-1,c});
-    if(r<SIZE-1) res.push({r:r+1,c});
-    if(c>0) res.push({r,c:c-1});
-    if(c<SIZE-1) res.push({r,c:c+1});
-    return res;
-  }
-  function get(r,c){ return (r>=0&&r<SIZE&&c>=0&&c<SIZE)?board[r][c]:null }
+  function neighbors(r,c){
+    const res=[];
+    if(r>0) res.push({r:r-1,c});
+    if(r<SIZE-1) res.push({r:r+1,c});
+    if(c>0) res.push({r,c:c-1});
+    if(c<SIZE-1) res.push({r,c:c+1});
+    return res;
+  }
+  function get(r,c){ return (r>=0&&r<SIZE&&c>=0&&c<SIZE)?board[r][c]:null }
 
-  function canPlaceValue(r,c,val){
-    if(get(r,c)) return false;
-    if(val===1) return true;
-    const sum = neighbors(r,c).reduce((acc,pos)=> acc + (get(pos.r,pos.c)?.val || 0), 0);
-    return sum >= val && sum <= 4;
-  }
+  // NOVA REGRA
+  function canPlaceValue(r,c,val){
+    if(get(r,c)) return false;
+    if(val===1) return true;
+    const sum = neighbors(r,c).reduce((acc,pos)=> acc + (get(pos.r,pos.c)?.val || 0), 0);
+    return sum >= val && sum <= 4;
+  }
 
-  function onCellClick(r,c){
-    if(get(r,c) || (turn!=='P' && !twoPlayer)) return;
-    if(!canPlaceValue(r,c, selected)) return flashInvalid(r,c);
-    placePiece(r,c, selected, turn);
-    const cap = selected;
-    if(selected>1) startSummon(r,c,turn,cap);
-    else finishTurn(turn);
-  }
+  function onCellClick(r,c){
+    if(get(r,c) || turn!=='P') return;
+    if(!canPlaceValue(r,c, selected)) return flashInvalid(r,c);
+    placePiece(r,c, selected, 'P');
+    const cap = selected;
+    if(selected>1) startSummon(r,c,'P',cap);
+    else finishTurn('P');
+  }
 
-  function placePiece(r,c,val, owner){
-    board[r][c] = {val, owner};
-    scores[owner]+=val;
-    refreshBoard();
-  }
+  function placePiece(r,c,val, owner){
+    board[r][c] = {val, owner};
+    scores[owner]+=val;
+    refreshBoard();
+  }
 
-  function flashInvalid(r,c){
-    const el = gridEl.children[r*SIZE+c];
-    el.classList.add('invalid-hover');
-    setTimeout(()=> el.classList.remove('invalid-hover'), 300);
-  }
+  function flashInvalid(r,c){
+    const el = gridEl.children[r*SIZE+c];
+    el.classList.add('invalid-hover');
+    setTimeout(()=> el.classList.remove('invalid-hover'), 300);
+  }
 
-  function updateValidHints(){
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        const el = gridEl.children[r*SIZE+c];
-        el.classList.remove('valid');
-        if(!get(r,c) && (turn==='P' || (twoPlayer && (turn==='B'))) && canPlaceValue(r,c, selected)) el.classList.add('valid');
-      }
-    }
-  }
+  function updateValidHints(){
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const el = gridEl.children[r*SIZE+c];
+        el.classList.remove('valid');
+        if(!get(r,c) && turn==='P' && canPlaceValue(r,c, selected)) el.classList.add('valid');
+      }
+    }
+  }
 
-  pickBtns.forEach(btn=>{
-    btn.addEventListener('click', ()=>{ selected = +btn.dataset.pick; updateValidHints(); });
-  });
+  pickBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{ selected = +btn.dataset.pick; updateValidHints(); });
+  });
 
-  resetBtn.addEventListener('click', ()=>resetGame(false));
-  restartBtn.addEventListener('click', ()=>{ endGameModal.close(); resetGame(false); });
+  resetBtn.addEventListener('click', resetGame);
+  restartBtn.addEventListener('click', ()=>{ endGameModal.close(); resetGame(); });
 
-  toggleTheme.addEventListener('click', ()=>{
-    document.body.classList.toggle('light');
-  });
+  function resetGame(){
+    board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
+    scores = {P:0, B:0};
+    turn='P';
+    selected=1; summon=null; currentSelSummon=1;
+    refreshBoard();
+  }
 
-  twoPlayerBtn.addEventListener('click', ()=>{
-    twoPlayer = !twoPlayer;
-    resetGame(twoPlayer);
-  });
+  function finishTurn(owner){
+    summon=null; endSummonBtn.disabled = true;
+    refreshBoard();
+    if(isBoardFull()) return endGame();
+    if(owner==='P'){ turn='B'; refreshBoard(); setTimeout(botTurn, 300); }
+    else{ turn='P'; refreshBoard(); }
+  }
 
-  function resetGame(startBot){
-    board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
-    scores = {P:0, B:0};
-    turn='P';
-    selected=1; summon=null; currentSelSummon=1;
-    refreshBoard();
-    if(twoPlayer && startBot){
-      turn='B';
-      refreshBoard();
-    } else if(!twoPlayer){
-      turn='P';
-      setTimeout(botTurn, 300);
-    }
-  }
+  function isBoardFull(){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!board[r][c]) return false;
+    return true;
+  }
 
-  function finishTurn(owner){
-    summon=null; endSummonBtn.disabled = true;
-    refreshBoard();
-    if(isBoardFull()) return endGame();
-    if(owner==='P'){ 
-      turn=twoPlayer?'B':'B'; 
-      refreshBoard(); 
-      if(!twoPlayer) setTimeout(botTurn, 300); 
-    } else { turn=twoPlayer?'P':'P'; refreshBoard(); }
-  }
+  function endGame(){
+    let msg = `Fim de jogo! Placar — Você: ${scores.P} · Bot: ${scores.B}. `;
+    if(scores.P>scores.B) msg += 'Você venceu!';
+    else if(scores.P<scores.B) msg += 'Bot venceu!';
+    else msg += 'Empate!';
+    endGameMsg.textContent = msg;
+    endGameModal.showModal();
+  }
 
-  function isBoardFull(){ return board.flat().every(x=>x); }
+  function botTurn(){
+    const moves=[];
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        if(get(r,c)) continue;
+        for(const v of [4,3,2,1]){
+          if(canPlaceValue(r,c,v)){
+            moves.push({r,c,val:v});
+          }
+        }
+      }
+    }
+    if(moves.length===0){ return finishTurn('B'); }
+    const m = moves[Math.floor(Math.random()*moves.length)];
+    placePiece(m.r,m.c,m.val,'B');
+    finishTurn('B');
+  }
 
-  function endGame(){
-    let msg='';
-    if(scores.P>scores.B) msg='Você venceu!';
-    else if(scores.P<scores.B) msg='Bot venceu!';
-    else msg='Empate!';
-    endGameMsg.textContent=msg;
-    endGameModal.showModal();
-  }
-
-  function startSummon(r,c, owner, cap){
-    summon = {r,c,owner,cap};
-    summonMain.textContent = PIECES[cap].sym;
-    budgetEl.textContent = cap;
-    adjGrid.innerHTML='';
-    neighbors(r,c).forEach(pos=>{
-      const b = document.createElement('button');
-      b.className='btn';
-      b.textContent='?';
-      b.addEventListener('click', ()=>onSummonSelect(pos.r,pos.c));
-      adjGrid.appendChild(b);
-    });
-    summonDlg.showModal();
-  }
-
-  function onSummonSelect(r,c){
-    if(!canPlaceValue(r,c,currentSelSummon)) return;
-    placePiece(r,c,currentSelSummon,turn);
-  }
-
-  closeSummonBtn.addEventListener('click', ()=>{
-    summonDlg.close();
-    finishTurn(turn);
-  });
-
-  clearSummonBtn.addEventListener('click', ()=>{
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        if(board[r][c]?.owner===turn && board[r][c].val>1) board[r][c]=null;
-      }
-    }
-    refreshBoard();
-  });
-
-  function botTurn(){
-    const emptyCells=[];
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        if(!board[r][c] && canPlaceValue(r,c,1)) emptyCells.push({r,c});
-      }
-    }
-    if(emptyCells.length===0) return finishTurn('B');
-    const choice = emptyCells[Math.floor(Math.random()*emptyCells.length)];
-    placePiece(choice.r, choice.c, 1,'B');
-    finishTurn('B');
-  }
-
-  buildGrid();
+  buildGrid();
 })();
 </script>
 </body>
