@@ -122,6 +122,522 @@
         <button id="resetBtn" class="btn ghost">Reiniciar</button>
       </div>
 
+      <div class="sub">Dica: ♡/◇/♧ podem ser colocadas se a soma ortogonal das peças ao redor do espaço vazio for ≥ ao valor da peça.</div>
+    </aside>
+  </div>
+
+  <!-- Modal de invocação -->
+  <dialog id="summonDlg">
+    <div class="modal">
+      <div class="headline">Invocar peças adjacentes</div>
+      <div>Peça principal: <span id="summonMain"></span> · Orçamento: <span class="budget" id="budget">0</span></div>
+      <div class="sub">Clique nos lados livres para colocar peças até gastar o orçamento. As peças invocadas ignoram as regras normais (só devem ser ortogonais e caber no orçamento).</div>
+      <div id="adjGrid" class="adj"></div>
+      <div class="row">
+        <button class="btn" data-sel="1">♤ 1</button>
+        <button class="btn" data-sel="2">♡ 2</button>
+        <button class="btn" data-sel="3">◇ 3</button>
+        <button class="btn" data-sel="4">♧ 4</button>
+      </div>
+      <div class="footer">
+        <span class="sub muted">Convocações do seu turno</span>
+        <div class="row">
+          <button id="clearSummon" class="btn ghost">Limpar</button>
+          <button id="closeSummon" class="btn primary">Concluir invocação</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal de fim de jogo -->
+  <dialog id="endGameModal">
+    <div class="modal">
+      <div id="endGameMsg" class="headline"></div>
+      <button id="restartBtn" class="btn primary" style="margin-top:12px">Reiniciar</button>
+    </div>
+  </dialog>
+
+<script>
+(function(){
+  const SIZE = 6;
+  const gridEl = document.getElementById('grid');
+  const scoreP = document.getElementById('scoreP');
+  const scoreB = document.getElementById('scoreB');
+  const turnTxt = document.getElementById('turnTxt');
+  const endSummonBtn = document.getElementById('endSummon');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const summonDlg = document.getElementById('summonDlg');
+  const summonMain = document.getElementById('summonMain');
+  const budgetEl = document.getElementById('budget');
+  const adjGrid = document.getElementById('adjGrid');
+  const selBtns = [...document.querySelectorAll('[data-sel]')];
+  const clearSummonBtn = document.getElementById('clearSummon');
+  const closeSummonBtn = document.getElementById('closeSummon');
+
+  const pickBtns = [...document.querySelectorAll('[data-pick]')];
+
+  const endGameModal = document.getElementById('endGameModal');
+  const endGameMsg = document.getElementById('endGameMsg');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const PIECES = {
+    1:{sym:'\u2664', val:1, name:'Lisa'},
+    2:{sym:'\u2661', val:2, name:'Serrada'},
+    3:{sym:'\u25C7', val:3, name:'Lustrada'},
+    4:{sym:'\u2667', val:4, name:'Entalhada'},
+  };
+
+  // Estado
+  let board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
+  let turn = 'P'; // P=Player, B=Bot
+  let selected = 1;
+  let scores = {P:0, B:0};
+  let summon = null; // {r,c, cap, owner, placements:[]}
+  let currentSelSummon = 1;
+
+  // --- Grid UI ---
+  function buildGrid(){
+    gridEl.innerHTML = '';
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const cell = document.createElement('button');
+        cell.className='cell';
+        cell.setAttribute('data-r', r);
+        cell.setAttribute('data-c', c);
+        cell.setAttribute('aria-label', `célula ${r+1},${c+1}`);
+        cell.addEventListener('mouseenter', ()=>{}); // placeholder
+        cell.addEventListener('mouseleave', ()=>{});
+        cell.addEventListener('click', ()=>onCellClick(r,c));
+        gridEl.appendChild(cell);
+      }
+    }
+    refreshBoard();
+  }
+
+  function refreshBoard(){
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const el = gridEl.children[r*SIZE+c];
+        el.innerHTML='';
+        const p = board[r][c];
+        el.classList.remove('valid','invalid-hover','disabled');
+        if(p){
+          const span = document.createElement('span');
+          span.className = 'piece ' + (p.owner==='P'?'blue':'red');
+          span.textContent = PIECES[p.val].sym;
+          el.appendChild(span);
+          el.classList.add('disabled');
+        }
+      }
+    }
+    scoreP.textContent = scores.P;
+    scoreB.textContent = scores.B;
+    turnTxt.textContent = turn==='P'?'Você':'Bot';
+    updateValidHints();
+  }
+
+  function neighbors(r,c){
+    const res=[];
+    if(r>0) res.push({r:r-1,c});
+    if(r<SIZE-1) res.push({r:r+1,c});
+    if(c>0) res.push({r,c:c-1});
+    if(c<SIZE-1) res.push({r,c:c+1});
+    return res;
+  }
+  function get(r,c){ return (r>=0&&r<SIZE&&c>=0&&c<SIZE)?board[r][c]:null }
+
+  // --- Nova regra: soma ortogonal >= valor ---
+  function canPlaceValue(r,c,val){
+    if(get(r,c)) return false;
+    if(val===1) return true;
+    const sum = neighbors(r,c).reduce((acc,pos)=> acc + (get(pos.r,pos.c)?.val || 0), 0);
+    return sum >= val;
+  }
+
+  // --- Invocação (summon) ---
+  function startSummon(r,c, owner, cap){
+    if(cap <= 0) { finishTurn(owner); return; }
+    // se não houver espaços adjacentes livres, não abre summon
+    const freeAdj = neighbors(r,c).filter(p=> !get(p.r,p.c)).length;
+    if(freeAdj === 0){ finishTurn(owner); return; }
+
+    summon = {r,c, cap, owner, placements:[]};
+    endSummonBtn.disabled = owner !== 'P';
+    if(owner === 'P'){
+      openSummonModal();
+    }else{
+      // Bot: aplicar invocações automaticamente (simples greedy de 1s)
+      let rem = cap;
+      for(const pos of neighbors(r,c)){
+        if(rem <= 0) break;
+        if(!get(pos.r,pos.c)){
+          board[pos.r][pos.c] = {val:1, owner:'B'};
+          scores.B += 1;
+          rem -= 1;
+        }
+      }
+      refreshBoard();
+      finishTurn('B');
+    }
+  }
+
+  function openSummonModal(){
+    if(!summon) return;
+    const mainPiece = get(summon.r, summon.c);
+    summonMain.textContent = mainPiece ? (PIECES[mainPiece.val].sym + ' ' + mainPiece.val) : '';
+    budgetEl.textContent = summon.cap - sumPlaced();
+    adjGrid.innerHTML = '';
+
+    const dirs = [
+      {dr:-1,dc:0,label:'↑'},
+      {dr:1,dc:0,label:'↓'},
+      {dr:0,dc:-1,label:'←'},
+      {dr:0,dc:1,label:'→'},
+    ];
+
+    dirs.forEach(d=>{
+      const rr = summon.r + d.dr;
+      const cc = summon.c + d.dc;
+      // evitar criar botão para posições fora do tabuleiro
+      if(rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE) return;
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.dataset.pos = rr+','+cc;
+      if(get(rr,cc)){
+        b.textContent = '×';
+        b.disabled = true;
+      }else{
+        // se já foi escolhida nessa posição, mostra símbolo escolhido
+        const existing = summon.placements.find(p=>p.r===rr && p.c===cc);
+        if(existing){
+          b.textContent = PIECES[existing.val].sym;
+          b.disabled = true;
+        }else{
+          b.textContent = d.label;
+          b.addEventListener('click', ()=> placeSummonedAt(rr,cc));
+        }
+      }
+      adjGrid.appendChild(b);
+    });
+
+    updateSummonButtons();
+    try { summonDlg.showModal(); } catch(e){ /* fallback se necessário */ }
+  }
+
+  function sumPlaced(){ return summon ? summon.placements.reduce((s,p)=> s + p.val, 0) : 0; }
+  function remaining(){ return summon ? (summon.cap - sumPlaced()) : 0; }
+
+  function updateSummonButtons(){
+    const rem = remaining();
+    // desabilita seleções > rem
+    selBtns.forEach(btn=> {
+      const v = +btn.dataset.sel;
+      btn.disabled = v > rem;
+      btn.classList.toggle('active', v === currentSelSummon);
+    });
+
+    // atualiza botões das posições adjacentes
+    [...adjGrid.children].forEach(ch=>{
+      if(!ch.dataset.pos) return;
+      const [rr,cc] = ch.dataset.pos.split(',').map(Number);
+      const existing = summon.placements.find(p=>p.r===rr && p.c===cc);
+      if(existing){
+        ch.textContent = PIECES[existing.val].sym;
+        ch.disabled = true;
+      }else{
+        ch.disabled = remaining() < currentSelSummon;
+        // mostrar marcador (seta) quando disponível
+        if(!ch.disabled) {
+          // manter label original (já atribuído)
+        }
+      }
+    });
+
+    budgetEl.textContent = rem;
+  }
+
+  function placeSummonedAt(r,c){
+    if(!summon) return;
+    const v = currentSelSummon || 1;
+    if(get(r,c)) return;
+    if(v > remaining()) return;
+    if(summon.placements.some(p=> p.r===r && p.c===c)) return;
+    summon.placements.push({r,c,val:v});
+    updateSummonButtons();
+  }
+
+  function clearSummon(){
+    if(!summon) return;
+    summon.placements = [];
+    openSummonModal(); // rebuild
+  }
+
+  function applySummonPlacements(){
+    if(!summon) return;
+    for(const p of summon.placements){
+      if(!get(p.r,p.c)){
+        board[p.r][p.c] = {val:p.val, owner:summon.owner};
+        scores[summon.owner] += p.val;
+      }
+    }
+    // limpar estado de summon
+    summon = null;
+    endSummonBtn.disabled = true;
+    refreshBoard();
+  }
+
+  function closeSummon(){
+    if(!summon) return;
+    try { summonDlg.close(); } catch(e) {}
+    applySummonPlacements();
+    finishTurn(summon ? summon.owner : 'P'); // summit.owner foi usado; se null, usar P
+  }
+
+  // eventos de controle de invocação
+  selBtns.forEach(b=> b.addEventListener('click', ()=>{
+    currentSelSummon = +b.dataset.sel;
+    updateSummonButtons();
+  }));
+  clearSummonBtn.addEventListener('click', clearSummon);
+  closeSummonBtn.addEventListener('click', closeSummon);
+
+  // atalho: botão na lateral para concluir invocação sem abrir modal
+  endSummonBtn.addEventListener('click', ()=>{
+    if(summon && summon.owner === 'P'){
+      applySummonPlacements();
+      // fechar modal se estiver aberto
+      try { if(summonDlg.open) summonDlg.close(); } catch(e){}
+      finishTurn('P');
+    }
+  });
+
+  // --- Interação do tabuleiro ---
+  function onCellClick(r,c){
+    if(get(r,c)) return;
+    if(turn !== 'P') return;
+    if(!canPlaceValue(r,c, selected)) return flashInvalid(r,c);
+    // coloca peça principal
+    board[r][c] = {val:selected, owner:'P'};
+    scores.P += selected;
+    refreshBoard();
+    // se peça > 1: iniciar invocação (modal) — startSummon decide se há adjacentes livres
+    if(selected > 1){
+      startSummon(r,c,'P',selected);
+    }else{
+      finishTurn('P');
+    }
+  }
+
+  function flashInvalid(r,c){
+    const el = gridEl.children[r*SIZE+c];
+    el.classList.add('invalid-hover');
+    setTimeout(()=> el.classList.remove('invalid-hover'), 300);
+  }
+
+  function updateValidHints(){
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        const el = gridEl.children[r*SIZE+c];
+        el.classList.remove('valid');
+        if(!get(r,c) && turn==='P' && canPlaceValue(r,c, selected)) el.classList.add('valid');
+      }
+    }
+  }
+
+  // seleção de peça
+  pickBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{ selected = +btn.dataset.pick; updateValidHints(); });
+  });
+
+  // reset e restart
+  resetBtn.addEventListener('click', resetGame);
+  restartBtn.addEventListener('click', ()=>{ endGameModal.close(); resetGame(); });
+
+  function resetGame(){
+    board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
+    scores = {P:0, B:0};
+    turn='P'; selected=1; summon=null; currentSelSummon=1;
+    endSummonBtn.disabled = true;
+    refreshBoard();
+  }
+
+  // --- Turnos e fim de jogo ---
+  function finishTurn(owner){
+    // owner foi quem finalizou seu turno; agora trocar turno
+    // se summon ainda existir e não foi aplicada (deve ter sido aplicada), limpamos
+    summon = null;
+    endSummonBtn.disabled = true;
+    refreshBoard();
+
+    if(isBoardFull()) return endGame();
+
+    if(owner === 'P'){
+      // passar para bot
+      turn = 'B';
+      refreshBoard();
+      setTimeout(botTurn, 250);
+    }else{
+      turn = 'P';
+      refreshBoard();
+    }
+  }
+
+  function isBoardFull(){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!board[r][c]) return false;
+    return true;
+  }
+
+  function endGame(){
+    let msg = `Fim de jogo! Placar — Você: ${scores.P} · Bot: ${scores.B}.`;
+    if(scores.P>scores.B) msg += ' Você venceu!';
+    else if(scores.P<scores.B) msg += ' Bot venceu!';
+    else msg += ' Empate!';
+    endGameMsg.textContent = msg;
+    try { endGameModal.showModal(); } catch(e){}
+  }
+
+  // --- Bot (simples heurística + invocação greedy) ---
+  function botTurn(){
+    const moves = [];
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        if(get(r,c)) continue;
+        for(const v of [4,3,2,1]){
+          if(canPlaceValue(r,c,v)){
+            // estimativa de ganho: v + invocações máximo de 1s (até v peças ou até espaços livres adjacentes)
+            const empties = neighbors(r,c).filter(p=> !get(p.r,p.c)).length;
+            const summonOnes = Math.min(v, empties); // assume invoca 1s
+            const scoreGain = v + summonOnes;
+            moves.push({r,c,val:v,scoreGain});
+          }
+        }
+      }
+    }
+
+    if(moves.length === 0){
+      return finishTurn('B');
+    }
+
+    // escolher melhor por scoreGain, desempate por aleatório
+    moves.sort((a,b)=> b.scoreGain - a.scoreGain || Math.random() - 0.5);
+    const m = moves[0];
+
+    // executar jogada
+    board[m.r][m.c] = {val:m.val, owner:'B'};
+    scores.B += m.val;
+
+    // invocação automática: greedy colocando 1s nos adjacentes livres até gastar cap
+    if(m.val >= 2){
+      let rem = m.val;
+      for(const pos of neighbors(m.r,m.c)){
+        if(rem <= 0) break;
+        if(!get(pos.r,pos.c)){
+          board[pos.r][pos.c] = {val:1, owner:'B'};
+          scores.B += 1;
+          rem -= 1;
+        }
+      }
+    }
+
+    refreshBoard();
+    finishTurn('B');
+  }
+
+  // Inicializar
+  buildGrid();
+})();
+</script>
+</body>
+</html>
+    .cell:hover{ transform: translateY(-1px); }
+    .cell.valid{ outline:2px dashed var(--ok); outline-offset:2px; }
+    .cell.invalid-hover{ outline:2px dashed #ff5252; outline-offset:2px; }
+    .cell.disabled{ pointer-events:none; opacity:.5; }
+
+    .piece{ font-weight:700; filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+    .blue{ color:var(--blue); }
+    .red{ color:var(--red); }
+
+    .side{
+      background:var(--panel); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      display:flex; flex-direction:column; gap:14px;
+    }
+    .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    .btn{
+      background:#22284f; border:1px solid #4050a0; color:#e6e8ff; padding:10px 12px; border-radius:12px; cursor:pointer;
+      font-weight:600; letter-spacing:.2px; transition:.15s ease; display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.25); }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; transform:none; }
+    .btn.ghost{ background:transparent; border-color:#394074 }
+    .btn.primary{ background:linear-gradient(180deg,#3b46a9,#2d398f); border-color:#4e5bed }
+    .btn.warn{ background:#3a2a00; border-color:#7a5a00 }
+
+    .chip{ background:#232955; border:1px solid #394074; padding:6px 10px; border-radius:999px; font-weight:700; }
+    .legend{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .legend div{ background:#12162f; border:1px solid #2b3466; border-radius:10px; padding:8px 10px; font-size:14px; }
+
+    .headline{ font-size:18px; font-weight:800; color:#cbd2ff; letter-spacing:.3px }
+    .sub{ color:#aeb6ff; font-size:13px }
+    .turn{ font-weight:800; }
+
+    dialog{ border:none; border-radius:16px; padding:0; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5) }
+    .modal{
+      background:var(--panel); color:#e6e8ff; padding:16px; width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px;
+    }
+    .budget{ font-weight:800; }
+    .adj{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px }
+    .adj button{ aspect-ratio:1/1; border-radius:12px; font-size:22px }
+    .muted{ opacity:.7 }
+
+    .footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px }
+
+    /* Modal de fim de jogo */
+    #endGameModal::backdrop{ background:rgba(0,0,0,.6); }
+    #endGameModal .modal{ text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="board">
+      <div class="row" style="justify-content:space-between; margin-bottom:10px">
+        <div>
+          <div class="headline">New Copper, Old Copper — 6×6</div>
+          <div class="sub">Suas peças <span class="blue">(azuis)</span>; Bot <span class="red">(vermelhas)</span></div>
+        </div>
+        <div class="row">
+          <span class="chip">Placar: <span id="scoreP">0</span> — <span id="scoreB">0</span></span>
+          <span class="chip">Turno: <span class="turn" id="turnTxt">Você</span></span>
+        </div>
+      </div>
+      <div id="grid" class="grid" aria-label="Tabuleiro 6x6"></div>
+    </section>
+
+    <aside class="side">
+      <div class="headline">Peças</div>
+      <div class="legend">
+        <div>♤ Lisa — valor 1</div>
+        <div>♡ Serrada — valor 2</div>
+        <div>◇ Lustrada — valor 3</div>
+        <div>♧ Entalhada — valor 4</div>
+      </div>
+
+      <div class="headline" style="margin-top:8px">Selecionar peça</div>
+      <div class="row">
+        <button class="btn" data-pick="1">♤ 1</button>
+        <button class="btn" data-pick="2">♡ 2</button>
+        <button class="btn" data-pick="3">◇ 3</button>
+        <button class="btn" data-pick="4">♧ 4</button>
+      </div>
+
+      <div class="headline" style="margin-top:8px">Ações</div>
+      <div class="row">
+        <button id="endSummon" class="btn warn" disabled>Concluir invocação</button>
+        <button id="resetBtn" class="btn ghost">Reiniciar</button>
+      </div>
+
       <div class="sub">Dica: agora ♡/◇/♧ podem ser colocadas se a soma dos lados adjacentes for ≥ ao seu valor, até 4.</div>
     </aside>
   </div>
