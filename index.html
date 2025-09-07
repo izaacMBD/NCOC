@@ -166,36 +166,61 @@
   </style>
 </head>
 <body>
-  <!-- Modal Manual -->
+  
+<!-- Modal Manual -->
 <dialog id="manualDialog">
   <div class="manual-content">
     <h2>Manual do Jogo: New Copper, Old Copper — 6×6</h2>
 
     <p><strong>🎯 Objetivo</strong><br>
-    O objetivo é somar mais pontos que o adversário colocando peças no tabuleiro 6×6.</p>
+    O objetivo é marcar mais pontos que o adversário colocando peças no tabuleiro 6×6.  
+    Cada peça vale entre 1 e 4 pontos.  
+    Use estratégia para aproveitar os espaços e bloquear o inimigo.</p>
 
     <p><strong>🧩 Peças</strong><br>
-    ♤ Lisa (1 ponto) → qualquer espaço.<br>
-    ♡ Serrada (2 pontos) → soma ≥ 2.<br>
-    ◇ Lustrada (3 pontos) → soma ≥ 3.<br>
-    ♧ Entalhada (4 pontos) → soma ≥ 4.</p>
+    ♤ <b>Lisa (1 ponto)</b> → pode ser colocada em qualquer espaço vazio.<br>
+    ♡ <b>Serrada (2 pontos)</b> → só pode ser colocada se a soma das peças ortogonais vizinhas (acima, abaixo, esquerda, direita) for ≥ 2.<br>
+    ◇ <b>Lustrada (3 pontos)</b> → só pode ser colocada se a soma ortogonal for ≥ 3.<br>
+    ♧ <b>Entalhada (4 pontos)</b> → só pode ser colocada se a soma ortogonal for ≥ 4.</p>
+
+    <p><strong>📌 Regras de posicionamento</strong><br>
+    - Apenas as casas ortogonais (cima, baixo, esquerda, direita) contam para a soma.<br>
+    - Casas diagonais <b>não</b> contam.<br>
+    - Peças de valor 1 sempre podem ser colocadas.</p>
+
+    <p><strong>✨ Convocação (Summon)</strong><br>
+    Quando você coloca uma peça de valor 2, 3 ou 4:<br>
+    - Ela libera um "orçamento" igual ao valor da peça.<br>
+    - Esse orçamento pode ser usado para invocar peças adicionais (valores 1–4) nas casas ortogonais livres.<br>
+    - As peças invocadas ignoram a regra da soma (só precisam caber no orçamento e estar em uma posição livre ortogonal).<br>
+    - Você escolhe onde e quais peças invocar até gastar o orçamento ou encerrar.</p>
 
     <p><strong>🕹️ Modos de jogo</strong><br>
-    PvBot (Bot começa como vermelho)<br>
-    PvP (dois jogadores humanos: azul e vermelho).</p>
+    - <b>PvBot</b>: Você joga como azul, o Bot joga como vermelho e sempre começa a partida.<br>
+    - <b>PvP</b>: Dois jogadores humanos se alternam (Jogador 1 = azul, Jogador 2 = vermelho).</p>
 
     <p><strong>📊 Placar</strong><br>
-    Mostra a pontuação. O jogo acaba quando o tabuleiro enche.</p>
+    Cada peça soma pontos iguais ao seu valor.  
+    O jogo termina quando o tabuleiro enche.  
+    Vence quem tiver a maior pontuação.  
+    O histórico de vitórias pode ser zerado com o botão “Zerar Placar”.</p>
 
     <p><strong>⚙️ Controles</strong><br>
-    - Selecionar peça<br>
-    - Colocar peça<br>
-    - Alternar Tema<br>
-    - Reiniciar Partida<br>
-    - Zerar Placar</p>
+    - Selecionar peça: clique em ♤ ♡ ◇ ♧.<br>
+    - Colocar peça: clique em uma célula válida (o jogo destaca as possíveis).<br>
+    - Alternar Modo: muda entre PvBot e PvP.<br>
+    - Alternar Tema: muda entre tema escuro e claro.<br>
+    - Reiniciar Partida: limpa o tabuleiro e começa de novo.<br>
+    - Zerar Placar: apaga as vitórias acumuladas.<br>
+    - Reiniciar no fim do jogo: botão que aparece quando o tabuleiro está cheio.</p>
 
     <p><strong>🏆 Fim do jogo</strong><br>
-    O vencedor aparece em uma janela. Pode dar empate.</p>
+    O jogo acaba quando todas as casas estão ocupadas.  
+    O vencedor aparece em uma janela de resultado.  
+    Empate ocorre se os dois lados tiverem a mesma pontuação.</p>
+
+    <p><strong>👉 Dica:</strong> use as peças de valor alto com cuidado!  
+    Elas dão muitos pontos e permitem convocações, mas só podem ser colocadas se a soma dos vizinhos for suficiente.</p>
 
     <button class="btn primary close-btn" id="closeManual">Fechar e Jogar</button>
   </div>
