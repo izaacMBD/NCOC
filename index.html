@@ -132,9 +132,75 @@
 
     #endGameModal::backdrop{ background:rgba(0,0,0,.7); }
     #endGameModal .modal{ text-align:center; }
+
+    /* Modal do Manual */
+#manualDialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+#manualDialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  width: min(600px, 90vw);
+}
+#manualDialog .manual-content {
+  background: var(--panel);
+  color: var(--text);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#manualDialog h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+#manualDialog .close-btn {
+  align-self: flex-end;
+  margin-top: 10px;
+}
+
   </style>
 </head>
 <body>
+  <!-- Modal Manual -->
+<dialog id="manualDialog">
+  <div class="manual-content">
+    <h2>Manual do Jogo: New Copper, Old Copper — 6×6</h2>
+
+    <p><strong>🎯 Objetivo</strong><br>
+    O objetivo é somar mais pontos que o adversário colocando peças no tabuleiro 6×6.</p>
+
+    <p><strong>🧩 Peças</strong><br>
+    ♤ Lisa (1 ponto) → qualquer espaço.<br>
+    ♡ Serrada (2 pontos) → soma ≥ 2.<br>
+    ◇ Lustrada (3 pontos) → soma ≥ 3.<br>
+    ♧ Entalhada (4 pontos) → soma ≥ 4.</p>
+
+    <p><strong>🕹️ Modos de jogo</strong><br>
+    PvBot (Bot começa como vermelho)<br>
+    PvP (dois jogadores humanos: azul e vermelho).</p>
+
+    <p><strong>📊 Placar</strong><br>
+    Mostra a pontuação. O jogo acaba quando o tabuleiro enche.</p>
+
+    <p><strong>⚙️ Controles</strong><br>
+    - Selecionar peça<br>
+    - Colocar peça<br>
+    - Alternar Tema<br>
+    - Reiniciar Partida<br>
+    - Zerar Placar</p>
+
+    <p><strong>🏆 Fim do jogo</strong><br>
+    O vencedor aparece em uma janela. Pode dar empate.</p>
+
+    <button class="btn primary close-btn" id="closeManual">Fechar e Jogar</button>
+  </div>
+</dialog>
+
   <div class="wrap">
     <section class="board">
       <div class="row" style="justify-content:space-between; margin-bottom:10px">
@@ -243,6 +309,18 @@
   const modePvsB = document.getElementById('modePvsB');
   const modeBvsP = document.getElementById('modeBvsP');
   const modePvsP = document.getElementById('modePvsP');
+
+  // Abrir manual ao carregar
+const manualDialog = document.getElementById('manualDialog');
+const closeManual = document.getElementById('closeManual');
+
+window.addEventListener('DOMContentLoaded', () => {
+  try { manualDialog.showModal(); } catch(e){}
+});
+
+closeManual.addEventListener('click', () => {
+  manualDialog.close();
+});
 
   const PIECES = {
     1:{sym:'\u2664', val:1, name:'Lisa'},
