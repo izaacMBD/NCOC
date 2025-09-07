@@ -12,8 +12,8 @@
       --gray:#555;
       --gray-light:#ddd;
       --gray-lighter:#f5f5f5;
-      --ok:#000; /* destaque válido em preto */
-      --warn:#666; /* aviso em cinza */
+      --ok:#000;
+      --warn:#666;
     }
     *{box-sizing:border-box}
     body{
@@ -77,7 +77,6 @@
 
     .footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px }
 
-    /* Modal de fim de jogo */
     #endGameModal::backdrop{ background:rgba(0,0,0,.3); }
     #endGameModal .modal{ text-align:center; }
   </style>
@@ -88,7 +87,7 @@
       <div class="row" style="justify-content:space-between; margin-bottom:10px">
         <div>
           <div class="headline">New Copper, Old Copper — 6×6</div>
-          <div class="sub">Suas peças <span class="blue">(azuis)</span>; Bot <span class="red">(vermelhas)</span></div>
+          <div class="sub">Suas peças <span class="blue">(pretas)</span>; Oponente <span class="red">(cinzas)</span></div>
         </div>
         <div class="row">
           <span class="chip">Placar: <span id="scoreP">0</span> — <span id="scoreB">0</span></span>
@@ -121,16 +120,23 @@
         <button id="resetBtn" class="btn ghost">Reiniciar</button>
       </div>
 
+      <!-- Novo seletor de modo -->
+      <div class="headline" style="margin-top:8px">Modo de Jogo</div>
+      <div class="row">
+        <button id="modePvsB" class="btn primary">Você começa</button>
+        <button id="modeBvsP" class="btn">Bot começa</button>
+        <button id="modePvsP" class="btn">Player vs Player</button>
+      </div>
+
       <div class="sub">Dica: ♡/◇/♧ podem ser colocadas se a soma ortogonal das peças ao redor do espaço vazio for ≥ ao valor da peça.</div>
     </aside>
   </div>
 
-  <!-- Modal de invocação -->
   <dialog id="summonDlg">
     <div class="modal">
       <div class="headline">Invocar peças adjacentes</div>
       <div>Peça principal: <span id="summonMain"></span> · Orçamento: <span class="budget" id="budget">0</span></div>
-      <div class="sub">Clique nos lados livres para colocar peças até gastar o orçamento. As peças invocadas ignoram as regras normais (só devem ser ortogonais e caber no orçamento).</div>
+      <div class="sub">Clique nos lados livres para colocar peças até gastar o orçamento.</div>
       <div id="adjGrid" class="adj"></div>
       <div class="row">
         <button class="btn" data-sel="1">♤ 1</button>
@@ -148,7 +154,6 @@
     </div>
   </dialog>
 
-  <!-- Modal de fim de jogo -->
   <dialog id="endGameModal">
     <div class="modal">
       <div id="endGameMsg" class="headline"></div>
@@ -180,6 +185,11 @@
   const endGameMsg = document.getElementById('endGameMsg');
   const restartBtn = document.getElementById('restartBtn');
 
+  // Botões de modo
+  const modePvsB = document.getElementById('modePvsB');
+  const modeBvsP = document.getElementById('modeBvsP');
+  const modePvsP = document.getElementById('modePvsP');
+
   const PIECES = {
     1:{sym:'\u2664', val:1, name:'Lisa'},
     2:{sym:'\u2661', val:2, name:'Serrada'},
@@ -189,11 +199,12 @@
 
   // Estado
   let board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
-  let turn = 'P'; // P=Player, B=Bot
+  let turn = 'P'; // P=Player1, B=Bot ou Player2
   let selected = 1;
   let scores = {P:0, B:0};
-  let summon = null; // {r,c, cap, owner, placements:[]}
+  let summon = null;
   let currentSelSummon = 1;
+  let gameMode = "PvsB"; // PvsB, BvsP, PvsP
 
   // --- Grid UI ---
   function buildGrid(){
@@ -205,8 +216,6 @@
         cell.setAttribute('data-r', r);
         cell.setAttribute('data-c', c);
         cell.setAttribute('aria-label', `célula ${r+1},${c+1}`);
-        cell.addEventListener('mouseenter', ()=>{}); // placeholder
-        cell.addEventListener('mouseleave', ()=>{});
         cell.addEventListener('click', ()=>onCellClick(r,c));
         gridEl.appendChild(cell);
       }
@@ -232,7 +241,7 @@
     }
     scoreP.textContent = scores.P;
     scoreB.textContent = scores.B;
-    turnTxt.textContent = turn==='P'?'Você':'Bot';
+    turnTxt.textContent = turn==='P'?'Jogador 1': (gameMode==="PvsP" ? "Jogador 2" : "Bot");
     updateValidHints();
   }
 
@@ -246,7 +255,6 @@
   }
   function get(r,c){ return (r>=0&&r<SIZE&&c>=0&&c<SIZE)?board[r][c]:null }
 
-  // --- Nova regra: soma ortogonal >= valor ---
   function canPlaceValue(r,c,val){
     if(get(r,c)) return false;
     if(val===1) return true;
@@ -254,10 +262,8 @@
     return sum >= val;
   }
 
-  // --- Invocação (summon) ---
   function startSummon(r,c, owner, cap){
     if(cap <= 0) { finishTurn(owner); return; }
-    // se não houver espaços adjacentes livres, não abre summon
     const freeAdj = neighbors(r,c).filter(p=> !get(p.r,p.c)).length;
     if(freeAdj === 0){ finishTurn(owner); return; }
 
@@ -266,18 +272,19 @@
     if(owner === 'P'){
       openSummonModal();
     }else{
-      // Bot: aplicar invocações automaticamente (simples greedy de 1s)
-      let rem = cap;
-      for(const pos of neighbors(r,c)){
-        if(rem <= 0) break;
-        if(!get(pos.r,pos.c)){
-          board[pos.r][pos.c] = {val:1, owner:'B'};
-          scores.B += 1;
-          rem -= 1;
+      if(gameMode !== "PvsP"){ // apenas bot faz auto-invocação
+        let rem = cap;
+        for(const pos of neighbors(r,c)){
+          if(rem <= 0) break;
+          if(!get(pos.r,pos.c)){
+            board[pos.r][pos.c] = {val:1, owner:'B'};
+            scores.B += 1;
+            rem -= 1;
+          }
         }
+        refreshBoard();
+        finishTurn('B');
       }
-      refreshBoard();
-      finishTurn('B');
     }
   }
 
@@ -298,7 +305,6 @@
     dirs.forEach(d=>{
       const rr = summon.r + d.dr;
       const cc = summon.c + d.dc;
-      // evitar criar botão para posições fora do tabuleiro
       if(rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE) return;
       const b = document.createElement('button');
       b.className = 'btn';
@@ -307,7 +313,6 @@
         b.textContent = '×';
         b.disabled = true;
       }else{
-        // se já foi escolhida nessa posição, mostra símbolo escolhido
         const existing = summon.placements.find(p=>p.r===rr && p.c===cc);
         if(existing){
           b.textContent = PIECES[existing.val].sym;
@@ -321,7 +326,7 @@
     });
 
     updateSummonButtons();
-    try { summonDlg.showModal(); } catch(e){ /* fallback se necessário */ }
+    try { summonDlg.showModal(); } catch(e){}
   }
 
   function sumPlaced(){ return summon ? summon.placements.reduce((s,p)=> s + p.val, 0) : 0; }
@@ -329,14 +334,11 @@
 
   function updateSummonButtons(){
     const rem = remaining();
-    // desabilita seleções > rem
     selBtns.forEach(btn=> {
       const v = +btn.dataset.sel;
       btn.disabled = v > rem;
       btn.classList.toggle('active', v === currentSelSummon);
     });
-
-    // atualiza botões das posições adjacentes
     [...adjGrid.children].forEach(ch=>{
       if(!ch.dataset.pos) return;
       const [rr,cc] = ch.dataset.pos.split(',').map(Number);
@@ -346,13 +348,8 @@
         ch.disabled = true;
       }else{
         ch.disabled = remaining() < currentSelSummon;
-        // mostrar marcador (seta) quando disponível
-        if(!ch.disabled) {
-          // manter label original (já atribuído)
-        }
       }
     });
-
     budgetEl.textContent = rem;
   }
 
@@ -361,189 +358,140 @@
     const v = currentSelSummon || 1;
     if(get(r,c)) return;
     if(v > remaining()) return;
-    if(summon.placements.some(p=> p.r===r && p.c===c)) return;
+    if(summon.placements.find(p=>p.r===r&&p.c===c)) return;
     summon.placements.push({r,c,val:v});
     updateSummonButtons();
   }
 
-  function clearSummon(){
-    if(!summon) return;
-    summon.placements = [];
-    openSummonModal(); // rebuild
-  }
-
-  function applySummonPlacements(){
+  function confirmSummon(){
     if(!summon) return;
     for(const p of summon.placements){
-      if(!get(p.r,p.c)){
-        board[p.r][p.c] = {val:p.val, owner:summon.owner};
-        scores[summon.owner] += p.val;
+      board[p.r][p.c] = {val:p.val, owner:summon.owner};
+      scores[summon.owner] += p.val;
+    }
+    summon = null;
+    summonDlg.close();
+    finishTurn('P');
+  }
+
+  function finishTurn(owner){
+    summon = null;
+    if(owner==='P'){
+      if(gameMode==="PvsP"){
+        turn = 'B';
+      }else{
+        turn = 'B';
+        botTurn();
+      }
+    }else{
+      turn = 'P';
+    }
+    refreshBoard();
+    checkEnd();
+  }
+
+  function botTurn(){
+    if(gameMode==="PvsP") return; // sem bot
+    const opts=[];
+    for(let r=0;r<SIZE;r++){
+      for(let c=0;c<SIZE;c++){
+        for(let v=1;v<=4;v++){
+          if(canPlaceValue(r,c,v)){
+            opts.push({r,c,v});
+          }
+        }
       }
     }
-    // limpar estado de summon
-    summon = null;
-    endSummonBtn.disabled = true;
+    if(!opts.length){ finishTurn('B'); return; }
+    const pick = opts[Math.floor(Math.random()*opts.length)];
+    board[pick.r][pick.c] = {val:pick.v, owner:'B'};
+    scores.B += pick.v;
     refreshBoard();
+    startSummon(pick.r,pick.c,'B', pick.v);
   }
 
-  function closeSummon(){
-    if(!summon) return;
-    try { summonDlg.close(); } catch(e) {}
-    applySummonPlacements();
-    finishTurn(summon ? summon.owner : 'P'); // summit.owner foi usado; se null, usar P
-  }
-
-  // eventos de controle de invocação
-  selBtns.forEach(b=> b.addEventListener('click', ()=>{
-    currentSelSummon = +b.dataset.sel;
-    updateSummonButtons();
-  }));
-  clearSummonBtn.addEventListener('click', clearSummon);
-  closeSummonBtn.addEventListener('click', closeSummon);
-
-  // atalho: botão na lateral para concluir invocação sem abrir modal
-  endSummonBtn.addEventListener('click', ()=>{
-    if(summon && summon.owner === 'P'){
-      applySummonPlacements();
-      // fechar modal se estiver aberto
-      try { if(summonDlg.open) summonDlg.close(); } catch(e){}
-      finishTurn('P');
-    }
-  });
-
-  // --- Interação do tabuleiro ---
   function onCellClick(r,c){
-    if(get(r,c)) return;
-    if(turn !== 'P') return;
-    if(!canPlaceValue(r,c, selected)) return flashInvalid(r,c);
-    // coloca peça principal
-    board[r][c] = {val:selected, owner:'P'};
-    scores.P += selected;
+    if(turn !== 'P' && !(gameMode==="PvsP" && turn==="B")) return;
+    if(!canPlaceValue(r,c,selected)) return;
+    board[r][c] = {val:selected, owner:turn};
+    scores[turn] += selected;
     refreshBoard();
-    // se peça > 1: iniciar invocação (modal) — startSummon decide se há adjacentes livres
-    if(selected > 1){
-      startSummon(r,c,'P',selected);
-    }else{
-      finishTurn('P');
+    startSummon(r,c, turn, selected);
+  }
+
+  function checkEnd(){
+    const free = board.flat().filter(x=>!x).length;
+    if(free===0){
+      let msg = '';
+      if(scores.P > scores.B) msg = "Vitória do Jogador 1!";
+      else if(scores.B > scores.P) msg = gameMode==="PvsP" ? "Vitória do Jogador 2!" : "Bot venceu!";
+      else msg = "Empate!";
+      endGameMsg.textContent = msg;
+      try{ endGameModal.showModal(); }catch(e){}
     }
   }
 
-  function flashInvalid(r,c){
-    const el = gridEl.children[r*SIZE+c];
-    el.classList.add('invalid-hover');
-    setTimeout(()=> el.classList.remove('invalid-hover'), 300);
+  function reset(){
+    board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
+    scores={P:0,B:0};
+    turn='P';
+    selected=1;
+    summon=null;
+    gameMode="PvsB";
+    refreshBoard();
   }
 
   function updateValidHints(){
     for(let r=0;r<SIZE;r++){
       for(let c=0;c<SIZE;c++){
         const el = gridEl.children[r*SIZE+c];
-        el.classList.remove('valid');
-        if(!get(r,c) && turn==='P' && canPlaceValue(r,c, selected)) el.classList.add('valid');
+        if(get(r,c)) continue;
+        if(canPlaceValue(r,c,selected)){
+          el.classList.add('valid');
+        }else{
+          el.classList.remove('valid');
+        }
       }
     }
   }
 
-  // seleção de peça
+  // --- Listeners ---
   pickBtns.forEach(btn=>{
-    btn.addEventListener('click', ()=>{ selected = +btn.dataset.pick; updateValidHints(); });
+    btn.addEventListener('click',()=>{
+      selected = +btn.dataset.pick;
+      updateValidHints();
+    });
+  });
+  endSummonBtn.addEventListener('click', confirmSummon);
+  clearSummonBtn.addEventListener('click', ()=>{ if(summon){ summon.placements=[]; updateSummonButtons(); }});
+  closeSummonBtn.addEventListener('click', confirmSummon);
+  resetBtn.addEventListener('click', reset);
+  restartBtn.addEventListener('click', ()=>{ endGameModal.close(); reset(); });
+
+  selBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{ currentSelSummon = +btn.dataset.sel; updateSummonButtons(); });
   });
 
-  // reset e restart
-  resetBtn.addEventListener('click', resetGame);
-  restartBtn.addEventListener('click', ()=>{ endGameModal.close(); resetGame(); });
+  // modos
+  modePvsB.addEventListener('click', ()=>{
+    reset(); gameMode="PvsB"; turn='P'; refreshBoard();
+    modePvsB.classList.add('primary');
+    modeBvsP.classList.remove('primary');
+    modePvsP.classList.remove('primary');
+  });
+  modeBvsP.addEventListener('click', ()=>{
+    reset(); gameMode="BvsP"; turn='B'; refreshBoard(); botTurn();
+    modeBvsP.classList.add('primary');
+    modePvsB.classList.remove('primary');
+    modePvsP.classList.remove('primary');
+  });
+  modePvsP.addEventListener('click', ()=>{
+    reset(); gameMode="PvsP"; turn='P'; refreshBoard();
+    modePvsP.classList.add('primary');
+    modePvsB.classList.remove('primary');
+    modeBvsP.classList.remove('primary');
+  });
 
-  function resetGame(){
-    board = Array.from({length:SIZE}, ()=>Array.from({length:SIZE}, ()=>null));
-    scores = {P:0, B:0};
-    turn='P'; selected=1; summon=null; currentSelSummon=1;
-    endSummonBtn.disabled = true;
-    refreshBoard();
-  }
-
-  // --- Turnos e fim de jogo ---
-  function finishTurn(owner){
-    // owner foi quem finalizou seu turno; agora trocar turno
-    // se summon ainda existir e não foi aplicada (deve ter sido aplicada), limpamos
-    summon = null;
-    endSummonBtn.disabled = true;
-    refreshBoard();
-
-    if(isBoardFull()) return endGame();
-
-    if(owner === 'P'){
-      // passar para bot
-      turn = 'B';
-      refreshBoard();
-      setTimeout(botTurn, 250);
-    }else{
-      turn = 'P';
-      refreshBoard();
-    }
-  }
-
-  function isBoardFull(){
-    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(!board[r][c]) return false;
-    return true;
-  }
-
-  function endGame(){
-    let msg = `Fim de jogo! Placar — Você: ${scores.P} · Bot: ${scores.B}.`;
-    if(scores.P>scores.B) msg += ' Você venceu!';
-    else if(scores.P<scores.B) msg += ' Bot venceu!';
-    else msg += ' Empate!';
-    endGameMsg.textContent = msg;
-    try { endGameModal.showModal(); } catch(e){}
-  }
-
-  // --- Bot (simples heurística + invocação greedy) ---
-  function botTurn(){
-    const moves = [];
-    for(let r=0;r<SIZE;r++){
-      for(let c=0;c<SIZE;c++){
-        if(get(r,c)) continue;
-        for(const v of [4,3,2,1]){
-          if(canPlaceValue(r,c,v)){
-            // estimativa de ganho: v + invocações máximo de 1s (até v peças ou até espaços livres adjacentes)
-            const empties = neighbors(r,c).filter(p=> !get(p.r,p.c)).length;
-            const summonOnes = Math.min(v, empties); // assume invoca 1s
-            const scoreGain = v + summonOnes;
-            moves.push({r,c,val:v,scoreGain});
-          }
-        }
-      }
-    }
-
-    if(moves.length === 0){
-      return finishTurn('B');
-    }
-
-    // escolher melhor por scoreGain, desempate por aleatório
-    moves.sort((a,b)=> b.scoreGain - a.scoreGain || Math.random() - 0.5);
-    const m = moves[0];
-
-    // executar jogada
-    board[m.r][m.c] = {val:m.val, owner:'B'};
-    scores.B += m.val;
-
-    // invocação automática: greedy colocando 1s nos adjacentes livres até gastar cap
-    if(m.val >= 2){
-      let rem = m.val;
-      for(const pos of neighbors(m.r,m.c)){
-        if(rem <= 0) break;
-        if(!get(pos.r,pos.c)){
-          board[pos.r][pos.c] = {val:1, owner:'B'};
-          scores.B += 1;
-          rem -= 1;
-        }
-      }
-    }
-
-    refreshBoard();
-    finishTurn('B');
-  }
-
-  // Inicializar
   buildGrid();
 })();
 </script>
