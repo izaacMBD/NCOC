@@ -6,80 +6,79 @@
   <title>New Copper, Old Copper — 6x6</title>
   <style>
     :root{
-      --blue:#1e90ff;
-      --red:#e53935;
-      --bg:#0f1220;
-      --panel:#171a2b;
-      --accent:#8a98ff;
-      --grid:#2a2f4a;
-      --cell:#1b2040;
-      --ok:#13c27a;
-      --warn:#ffb703;
+      --black:#000;
+      --white:#fff;
+      --gray-dark:#222;
+      --gray:#555;
+      --gray-light:#ddd;
+      --gray-lighter:#f5f5f5;
+      --ok:#000; /* destaque válido em preto */
+      --warn:#666; /* aviso em cinza */
     }
     *{box-sizing:border-box}
     body{
-      margin:0; font-family:system-ui,Segoe UI,Roboto,Ubuntu,Arial,sans-serif; background:var(--bg); color:#e6e8ff;
+      margin:0; font-family:system-ui,Segoe UI,Roboto,Ubuntu,Arial,sans-serif; background:var(--white); color:var(--black);
       display:flex; min-height:100dvh; align-items:center; justify-content:center; padding:16px;
     }
     .wrap{display:grid; gap:16px; width:min(1100px, 100%); grid-template-columns: 1fr 320px}
     @media (max-width: 920px){ .wrap{grid-template-columns: 1fr} }
 
     .board{
-      background:linear-gradient(180deg, var(--panel), transparent 200px);
-      border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      background:var(--gray-lighter);
+      border-radius:8px; padding:16px; border:1px solid var(--gray-light);
     }
-    .grid{ display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(6,1fr); gap:8px; }
+    .grid{ display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(6,1fr); gap:4px; }
     .cell{
-      width:100%; aspect-ratio:1/1; border-radius:12px; background:var(--cell); display:grid; place-items:center;
-      border:1px solid var(--grid); font-size:28px; position:relative; cursor:pointer; user-select:none;
+      width:100%; aspect-ratio:1/1; border-radius:4px; background:var(--white); display:grid; place-items:center;
+      border:1px solid var(--gray-light); font-size:28px; position:relative; cursor:pointer; user-select:none;
       transition: transform .08s ease;
     }
     .cell:hover{ transform: translateY(-1px); }
-    .cell.valid{ outline:2px dashed var(--ok); outline-offset:2px; }
-    .cell.invalid-hover{ outline:2px dashed #ff5252; outline-offset:2px; }
+    .cell.valid{ outline:2px dashed var(--black); outline-offset:2px; }
+    .cell.invalid-hover{ outline:2px dashed var(--gray); outline-offset:2px; }
     .cell.disabled{ pointer-events:none; opacity:.5; }
 
-    .piece{ font-weight:700; filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
-    .blue{ color:var(--blue); }
-    .red{ color:var(--red); }
+    .piece{ font-weight:700; }
+    .blue{ color:var(--black); }
+    .red{ color:var(--gray-dark); }
 
     .side{
-      background:var(--panel); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      background:var(--gray-lighter); border-radius:8px; padding:16px; border:1px solid var(--gray-light);
       display:flex; flex-direction:column; gap:14px;
     }
     .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
     .btn{
-      background:#22284f; border:1px solid #4050a0; color:#e6e8ff; padding:10px 12px; border-radius:12px; cursor:pointer;
+      background:var(--white); border:1px solid var(--gray); color:var(--black); padding:8px 12px; border-radius:6px; cursor:pointer;
       font-weight:600; letter-spacing:.2px; transition:.15s ease; display:inline-flex; align-items:center; gap:8px;
     }
-    .btn:hover{ transform: translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.25); }
-    .btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; transform:none; }
-    .btn.ghost{ background:transparent; border-color:#394074 }
-    .btn.primary{ background:linear-gradient(180deg,#3b46a9,#2d398f); border-color:#4e5bed }
-    .btn.warn{ background:#3a2a00; border-color:#7a5a00 }
+    .btn:hover{ transform: translateY(-1px); background:var(--gray-lighter); }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+    .btn.ghost{ background:transparent; border-color:var(--gray-light) }
+    .btn.primary{ background:var(--black); border-color:var(--black); color:var(--white); }
+    .btn.warn{ background:var(--gray-light); border-color:var(--gray); }
 
-    .chip{ background:#232955; border:1px solid #394074; padding:6px 10px; border-radius:999px; font-weight:700; }
+    .chip{ background:var(--gray-lighter); border:1px solid var(--gray-light); padding:4px 10px; border-radius:999px; font-weight:700; }
     .legend{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-    .legend div{ background:#12162f; border:1px solid #2b3466; border-radius:10px; padding:8px 10px; font-size:14px; }
+    .legend div{ background:var(--white); border:1px solid var(--gray-light); border-radius:4px; padding:6px 8px; font-size:14px; }
 
-    .headline{ font-size:18px; font-weight:800; color:#cbd2ff; letter-spacing:.3px }
-    .sub{ color:#aeb6ff; font-size:13px }
+    .headline{ font-size:18px; font-weight:800; color:var(--black); letter-spacing:.3px }
+    .sub{ color:var(--gray-dark); font-size:13px }
     .turn{ font-weight:800; }
 
-    dialog{ border:none; border-radius:16px; padding:0; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5) }
+    dialog{ border:none; border-radius:8px; padding:0; overflow:hidden; border:1px solid var(--gray-light); }
     .modal{
-      background:var(--panel); color:#e6e8ff; padding:16px; width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px;
+      background:var(--white); color:var(--black); padding:16px; width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px;
     }
     .budget{ font-weight:800; }
     .adj{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px }
-    .adj button{ aspect-ratio:1/1; border-radius:12px; font-size:22px }
+    .adj button{ aspect-ratio:1/1; border-radius:4px; font-size:22px }
     .muted{ opacity:.7 }
 
     .footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px }
 
     /* Modal de fim de jogo */
-    #endGameModal::backdrop{ background:rgba(0,0,0,.6); }
+    #endGameModal::backdrop{ background:rgba(0,0,0,.3); }
     #endGameModal .modal{ text-align:center; }
   </style>
 </head>
